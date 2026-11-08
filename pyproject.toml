@@ -1,0 +1,31 @@
+[project]
+name = "tech-challenge-fiap-os-service"
+version = "0.1.0"
+description = "Order service for FIAP Tech Challenge"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "pydantic>=2.10,<3.0",
+]
+
+[tool.poetry]
+package-mode = false
+
+[tool.poetry.group.test.dependencies]
+pytest = ">=8.3,<9.0"
+pytest-cov = ">=6.0,<7.0"
+jsonschema = ">=4.23,<5.0"
+ruff = ">=0.9,<1.0"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+pythonpath = ["."]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+
