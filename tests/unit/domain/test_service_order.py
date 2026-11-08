@@ -107,4 +107,3 @@ def test_started_repair_requires_manual_intervention_instead_of_cancellation() -
 
     order.require_manual_intervention()
     assert order.status is ServiceOrderStatus.MANUAL_INTERVENTION
-
