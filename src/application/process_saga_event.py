@@ -77,6 +77,7 @@ class SagaProcessManager:
             order_id=self.order.id,
             correlation_id=event.correlation_id,
             causation_id=event.event_id,
+            occurred_at=event.occurred_at,
         )
 
     def _order_opened(self, event: EventEnvelopeV1) -> list[PendingCommand]:

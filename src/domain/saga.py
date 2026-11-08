@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import StrEnum
 from typing import Any
 from uuid import UUID
@@ -29,6 +30,7 @@ class PendingCommand:
     order_id: UUID
     correlation_id: UUID
     causation_id: UUID
+    occurred_at: datetime
     payload: dict[str, Any] = field(default_factory=dict)
 
 
