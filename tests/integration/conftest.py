@@ -25,4 +25,3 @@ def session_factory() -> sessionmaker[Session]:
 def client(session_factory: sessionmaker[Session]) -> Iterator[TestClient]:
     with TestClient(create_app(session_factory)) as test_client:
         yield test_client
-

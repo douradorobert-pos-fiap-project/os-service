@@ -129,4 +129,3 @@ def test_openapi_exposes_customer_vehicle_and_order_operations(
     assert "/api/v1/service-orders" in paths
     assert "/api/v1/service-orders/{order_id}" in paths
     assert "/api/v1/service-orders/{order_id}/history" in paths
-
