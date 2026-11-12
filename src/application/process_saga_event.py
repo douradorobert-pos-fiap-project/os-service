@@ -9,6 +9,8 @@ from src.domain.saga import (
 )
 from src.domain.service_order import ServiceOrder
 from src.infrastructure.messaging.envelope import EventEnvelopeV1
+from src.infrastructure.observability.logging import bind_context, log_event
+from src.infrastructure.observability.telemetry import record_event
 
 
 class SagaProcessManager:
@@ -20,14 +22,33 @@ class SagaProcessManager:
 
     def handle_event(self, event: EventEnvelopeV1) -> list[PendingCommand]:
         if event.event_id in self.saga.processed_event_ids:
+            log_event(
+                "saga.duplicate", event_id=event.event_id, event_type=event.event_type
+            )
             return []
         self._validate_identity(event)
 
         handler = self._handlers().get((self.saga.state, event.event_type))
         if handler is None:
-            raise InvalidSagaEvent(f"{self.saga.state} cannot handle {event.event_type}")
+            raise InvalidSagaEvent(
+                f"{self.saga.state} cannot handle {event.event_type}"
+            )
 
-        commands = handler(event)
+        previous_state = self.saga.state
+        with bind_context(
+            correlation_id=event.correlation_id,
+            saga_id=event.saga_id,
+            order_id=event.order_id,
+        ):
+            commands = handler(event)
+            attributes = {
+                "event_type": event.event_type,
+                "previous_state": previous_state.value,
+                "current_state": self.saga.state.value,
+                "event_id": str(event.event_id),
+            }
+            log_event("saga.transition", **attributes)
+            record_event("SagaTransition", attributes)
         self.saga.processed_event_ids.add(event.event_id)
         return commands
 
@@ -37,9 +58,7 @@ class SagaProcessManager:
 
     def _handlers(
         self,
-    ) -> dict[
-        tuple[SagaState, str], Callable[[EventEnvelopeV1], list[PendingCommand]]
-    ]:
+    ) -> dict[tuple[SagaState, str], Callable[[EventEnvelopeV1], list[PendingCommand]]]:
         return {
             (SagaState.STARTED, "ServiceOrderOpenedV1"): self._order_opened,
             (SagaState.WAITING_DIAGNOSIS, "DiagnosisCompletedV1"): (
@@ -67,9 +86,7 @@ class SagaProcessManager:
             (SagaState.WAITING_PAYMENT, "PaymentConfirmedV1"): self._payment_confirmed,
         }
 
-    def _command(
-        self, event: EventEnvelopeV1, command_type: str
-    ) -> PendingCommand:
+    def _command(self, event: EventEnvelopeV1, command_type: str) -> PendingCommand:
         command_id = uuid5(
             NAMESPACE_URL, f"{self.saga.id}:{event.event_id}:{command_type}"
         )

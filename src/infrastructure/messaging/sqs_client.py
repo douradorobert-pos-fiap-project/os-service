@@ -6,6 +6,9 @@ from typing import Any
 import boto3
 from botocore.config import Config
 
+from src.infrastructure.observability.logging import bind_context, log_event
+from src.infrastructure.observability.telemetry import record_event
+
 
 @dataclass(frozen=True)
 class ReceivedMessage:
@@ -43,10 +46,22 @@ class SQSClient:
         return self._client.meta.endpoint_url
 
     def send(self, queue_url: str, envelope: dict[str, Any]) -> str:
-        response = self._client.send_message(
-            QueueUrl=queue_url,
-            MessageBody=json.dumps(envelope, separators=(",", ":")),
-        )
+        with bind_context(
+            correlation_id=envelope.get("correlation_id"),
+            saga_id=envelope.get("saga_id"),
+            order_id=envelope.get("order_id"),
+        ):
+            response = self._client.send_message(
+                QueueUrl=queue_url,
+                MessageBody=json.dumps(envelope, separators=(",", ":")),
+            )
+            attributes = {
+                "event_id": envelope.get("event_id"),
+                "event_type": envelope.get("event_type"),
+                "message_id": response["MessageId"],
+            }
+            log_event("message.published", **attributes)
+            record_event("MessagePublished", attributes)
         return response["MessageId"]
 
     def receive(self, queue_url: str) -> list[ReceivedMessage]:
@@ -76,6 +91,4 @@ class SQSClient:
         return received
 
     def delete(self, queue_url: str, receipt_handle: str) -> None:
-        self._client.delete_message(
-            QueueUrl=queue_url, ReceiptHandle=receipt_handle
-        )
+        self._client.delete_message(QueueUrl=queue_url, ReceiptHandle=receipt_handle)
