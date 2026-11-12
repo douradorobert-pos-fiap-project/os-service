@@ -41,27 +41,27 @@ class SagaProcessManager:
         tuple[SagaState, str], Callable[[EventEnvelopeV1], list[PendingCommand]]
     ]:
         return {
-            (SagaState.STARTED, "ServiceOrderOpened"): self._order_opened,
-            (SagaState.WAITING_DIAGNOSIS, "DiagnosisCompleted"): (
+            (SagaState.STARTED, "ServiceOrderOpenedV1"): self._order_opened,
+            (SagaState.WAITING_DIAGNOSIS, "DiagnosisCompletedV1"): (
                 self._diagnosis_completed
             ),
-            (SagaState.WAITING_QUOTE, "QuoteGenerated"): self._quote_generated,
-            (SagaState.WAITING_APPROVAL, "QuoteApproved"): self._quote_approved,
-            (SagaState.WAITING_APPROVAL, "QuoteRejected"): self._quote_rejected,
-            (SagaState.WAITING_EXECUTION, "ExecutionStarted"): (
+            (SagaState.WAITING_QUOTE, "QuoteGeneratedV1"): self._quote_generated,
+            (SagaState.WAITING_APPROVAL, "QuoteApprovedV1"): self._quote_approved,
+            (SagaState.WAITING_APPROVAL, "QuoteRejectedV1"): self._quote_rejected,
+            (SagaState.WAITING_EXECUTION, "ExecutionStartedV1"): (
                 self._execution_started
             ),
-            (SagaState.WAITING_EXECUTION, "ExecutionFailed"): (
+            (SagaState.WAITING_EXECUTION, "ExecutionFailedV1"): (
                 self._execution_failed_before_start
             ),
-            (SagaState.IN_EXECUTION, "ExecutionCompleted"): (
+            (SagaState.IN_EXECUTION, "ExecutionCompletedV1"): (
                 self._execution_completed
             ),
-            (SagaState.IN_EXECUTION, "ExecutionFailed"): (
+            (SagaState.IN_EXECUTION, "ExecutionFailedV1"): (
                 self._execution_failed_after_start
             ),
-            (SagaState.WAITING_PAYMENT, "PaymentPending"): self._payment_pending,
-            (SagaState.WAITING_PAYMENT, "PaymentConfirmed"): self._payment_confirmed,
+            (SagaState.WAITING_PAYMENT, "PaymentPendingV1"): self._payment_pending,
+            (SagaState.WAITING_PAYMENT, "PaymentConfirmedV1"): self._payment_confirmed,
         }
 
     def _command(
@@ -83,12 +83,12 @@ class SagaProcessManager:
     def _order_opened(self, event: EventEnvelopeV1) -> list[PendingCommand]:
         self.order.request_diagnosis()
         self.saga.state = SagaState.WAITING_DIAGNOSIS
-        return [self._command(event, "DiagnosisRequested")]
+        return [self._command(event, "DiagnosisRequestedV1")]
 
     def _diagnosis_completed(self, event: EventEnvelopeV1) -> list[PendingCommand]:
         self.order.complete_diagnosis()
         self.saga.state = SagaState.WAITING_QUOTE
-        return [self._command(event, "QuoteGenerationRequested")]
+        return [self._command(event, "QuoteGenerationRequestedV1")]
 
     def _quote_generated(self, event: EventEnvelopeV1) -> list[PendingCommand]:
         self.order.receive_quote()
@@ -98,7 +98,7 @@ class SagaProcessManager:
     def _quote_approved(self, event: EventEnvelopeV1) -> list[PendingCommand]:
         self.order.approve_quote()
         self.saga.state = SagaState.WAITING_EXECUTION
-        return [self._command(event, "ExecutionRequested")]
+        return [self._command(event, "ExecutionRequestedV1")]
 
     def _quote_rejected(self, event: EventEnvelopeV1) -> list[PendingCommand]:
         self.order.cancel()
@@ -121,7 +121,7 @@ class SagaProcessManager:
         self.order.complete_execution()
         self.order.request_payment()
         self.saga.state = SagaState.WAITING_PAYMENT
-        return [self._command(event, "PaymentCreationRequested")]
+        return [self._command(event, "PaymentCreationRequestedV1")]
 
     def _execution_failed_after_start(
         self, event: EventEnvelopeV1

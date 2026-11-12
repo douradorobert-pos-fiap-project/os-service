@@ -93,6 +93,12 @@ class OutboxMessageModel(Base):
         DateTime(timezone=True), nullable=True
     )
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    lease_until: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    next_attempt_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 class InboxMessageModel(Base):

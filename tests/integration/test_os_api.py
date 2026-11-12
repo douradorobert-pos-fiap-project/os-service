@@ -62,7 +62,7 @@ def test_open_order_persists_order_saga_history_and_outbox_atomically(
         assert session.scalar(select(func.count()).select_from(OutboxMessageModel)) == 1
         message = session.scalar(select(OutboxMessageModel))
         assert message is not None
-        assert message.message_type == "DiagnosisRequested"
+        assert message.message_type == "DiagnosisRequestedV1"
 
 
 def test_order_can_be_queried_with_its_history(client: TestClient) -> None:

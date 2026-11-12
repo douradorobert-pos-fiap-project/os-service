@@ -71,7 +71,7 @@ def create_service_order(
         commands = process.handle_event(
             EventEnvelopeV1(
                 event_id=opened_id,
-                event_type="ServiceOrderOpened",
+                event_type="ServiceOrderOpenedV1",
                 occurred_at=datetime.now(UTC),
                 correlation_id=correlation_id,
                 causation_id=opened_id,

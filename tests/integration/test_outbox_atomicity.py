@@ -21,7 +21,7 @@ def opened_order_with_command():
     commands = process.handle_event(
         EventEnvelopeV1(
             event_id=event_id,
-            event_type="ServiceOrderOpened",
+            event_type="ServiceOrderOpenedV1",
             occurred_at=datetime(2026, 11, 8, 18, 0, tzinfo=UTC),
             correlation_id=correlation_id,
             causation_id=event_id,

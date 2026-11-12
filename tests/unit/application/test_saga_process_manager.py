@@ -42,14 +42,14 @@ def manager() -> SagaProcessManager:
 def test_saga_generates_the_happy_path_commands() -> None:
     process = manager()
     sequence = [
-        ("ServiceOrderOpened", "DiagnosisRequested"),
-        ("DiagnosisCompleted", "QuoteGenerationRequested"),
-        ("QuoteGenerated", None),
-        ("QuoteApproved", "ExecutionRequested"),
-        ("ExecutionStarted", None),
-        ("ExecutionCompleted", "PaymentCreationRequested"),
-        ("PaymentPending", None),
-        ("PaymentConfirmed", None),
+        ("ServiceOrderOpenedV1", "DiagnosisRequestedV1"),
+        ("DiagnosisCompletedV1", "QuoteGenerationRequestedV1"),
+        ("QuoteGeneratedV1", None),
+        ("QuoteApprovedV1", "ExecutionRequestedV1"),
+        ("ExecutionStartedV1", None),
+        ("ExecutionCompletedV1", "PaymentCreationRequestedV1"),
+        ("PaymentPendingV1", None),
+        ("PaymentConfirmedV1", None),
     ]
 
     for event_type, expected_command in sequence:
@@ -72,7 +72,7 @@ def test_duplicate_event_is_acknowledged_without_a_second_command() -> None:
     process = manager()
     event_id = uuid4()
     opened = envelope(
-        "ServiceOrderOpened",
+        "ServiceOrderOpenedV1",
         saga_id=process.saga.id,
         order_id=process.order.id,
         event_id=event_id,
@@ -96,7 +96,7 @@ def test_same_event_always_produces_the_same_command_id() -> None:
         )
     )
     opened = envelope(
-        "ServiceOrderOpened",
+        "ServiceOrderOpenedV1",
         saga_id=process_a.saga.id,
         order_id=process_a.order.id,
     )
@@ -110,7 +110,7 @@ def test_same_event_always_produces_the_same_command_id() -> None:
 def test_out_of_order_event_does_not_advance_or_deduplicate_the_saga() -> None:
     process = manager()
     approved = envelope(
-        "QuoteApproved",
+        "QuoteApprovedV1",
         saga_id=process.saga.id,
         order_id=process.order.id,
     )
@@ -124,7 +124,7 @@ def test_out_of_order_event_does_not_advance_or_deduplicate_the_saga() -> None:
 
 def test_quote_rejection_compensates_before_execution() -> None:
     process = manager()
-    for event_type in ("ServiceOrderOpened", "DiagnosisCompleted", "QuoteGenerated"):
+    for event_type in ("ServiceOrderOpenedV1", "DiagnosisCompletedV1", "QuoteGeneratedV1"):
         process.handle_event(
             envelope(
                 event_type,
@@ -135,7 +135,7 @@ def test_quote_rejection_compensates_before_execution() -> None:
 
     commands = process.handle_event(
         envelope(
-            "QuoteRejected",
+            "QuoteRejectedV1",
             saga_id=process.saga.id,
             order_id=process.order.id,
         )
@@ -149,11 +149,11 @@ def test_quote_rejection_compensates_before_execution() -> None:
 def test_execution_failure_after_start_requires_manual_intervention() -> None:
     process = manager()
     for event_type in (
-        "ServiceOrderOpened",
-        "DiagnosisCompleted",
-        "QuoteGenerated",
-        "QuoteApproved",
-        "ExecutionStarted",
+        "ServiceOrderOpenedV1",
+        "DiagnosisCompletedV1",
+        "QuoteGeneratedV1",
+        "QuoteApprovedV1",
+        "ExecutionStartedV1",
     ):
         process.handle_event(
             envelope(
@@ -165,7 +165,7 @@ def test_execution_failure_after_start_requires_manual_intervention() -> None:
 
     commands = process.handle_event(
         envelope(
-            "ExecutionFailed",
+            "ExecutionFailedV1",
             saga_id=process.saga.id,
             order_id=process.order.id,
         )
