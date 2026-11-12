@@ -1,0 +1,88 @@
+name: pipeline
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.12"
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: snok/install-poetry@v1
+        with:
+          version: 2.2.1
+          virtualenvs-create: true
+      - run: poetry install --no-interaction
+      - run: bash scripts/quality.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quality-reports-${{ github.event.repository.name }}
+          path: reports/
+          if-no-files-found: error
+
+  container:
+    runs-on: ubuntu-latest
+    needs: quality
+    outputs:
+      image: ${{ steps.image.outputs.uri }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image for pull request
+        if: github.event_name == 'pull_request'
+        run: docker build --tag ${{ github.event.repository.name }}:${{ github.sha }} .
+      - uses: aws-actions/configure-aws-credentials@v4
+        if: github.event_name != 'pull_request'
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - uses: aws-actions/amazon-ecr-login@v2
+        if: github.event_name != 'pull_request'
+        id: ecr
+      - name: Publish immutable image
+        if: github.event_name != 'pull_request'
+        id: image
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          IMAGE="$REGISTRY/${{ github.event.repository.name }}:${{ github.sha }}"
+          docker build --tag "$IMAGE" .
+          docker push "$IMAGE"
+          echo "uri=$IMAGE" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: container
+    if: github.event_name != 'pull_request'
+    environment: sandbox
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name "${{ vars.EKS_CLUSTER_NAME }}" --region "${{ env.AWS_REGION }}"
+      - name: Deploy immutable image
+        run: |
+          kubectl -n oficina set image "deployment/${{ vars.K8S_DEPLOYMENT }}" app="${{ needs.container.outputs.image }}"
+          kubectl -n oficina rollout status "deployment/${{ vars.K8S_DEPLOYMENT }}" --timeout=180s
+

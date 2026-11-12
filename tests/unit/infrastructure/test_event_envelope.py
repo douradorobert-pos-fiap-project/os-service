@@ -74,4 +74,3 @@ def test_envelope_rejects_an_invalid_uuid() -> None:
 
     with pytest.raises(ValidationError):
         EventEnvelopeV1.model_validate(data)
-

@@ -27,4 +27,3 @@ class EventEnvelopeV1(BaseModel):
     def normalize_timestamp_to_utc(cls, value: datetime) -> datetime:
         """Serialize every accepted aware timestamp in UTC."""
         return value.astimezone(UTC)
-

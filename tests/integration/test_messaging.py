@@ -48,9 +48,7 @@ def queues():
             Attributes={
                 "VisibilityTimeout": "0",
                 "RedrivePolicy": (
-                    '{"deadLetterTargetArn":"'
-                    + dlq_arn
-                    + '","maxReceiveCount":"3"}'
+                    '{"deadLetterTargetArn":"' + dlq_arn + '","maxReceiveCount":"3"}'
                 ),
             },
         )["QueueUrl"]
@@ -153,9 +151,10 @@ def test_relay_leases_and_publishes_outbox(queues, session_factory):
         saved = session.get(OutboxMessageModel, message.id)
         assert saved.published_at is not None
         assert saved.lease_until is None
-    assert SQSClient(queues[0]).receive(queue_url)[0].body["event_id"] == message.payload[
-        "event_id"
-    ]
+    assert (
+        SQSClient(queues[0]).receive(queue_url)[0].body["event_id"]
+        == message.payload["event_id"]
+    )
 
 
 def test_relay_failure_schedules_exponential_retry(session_factory):
@@ -183,9 +182,9 @@ def test_relay_failure_schedules_exponential_retry(session_factory):
     assert relay.run_once() == 0
 
     with session_factory() as session:
-        saved = session.scalar(select(OutboxMessageModel).where(
-            OutboxMessageModel.id == message.id
-        ))
+        saved = session.scalar(
+            select(OutboxMessageModel).where(OutboxMessageModel.id == message.id)
+        )
         assert saved.attempts == 1
         assert saved.next_attempt_at.replace(tzinfo=UTC) >= before
         assert saved.lease_until is None

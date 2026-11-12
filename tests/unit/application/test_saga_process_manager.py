@@ -124,7 +124,11 @@ def test_out_of_order_event_does_not_advance_or_deduplicate_the_saga() -> None:
 
 def test_quote_rejection_compensates_before_execution() -> None:
     process = manager()
-    for event_type in ("ServiceOrderOpenedV1", "DiagnosisCompletedV1", "QuoteGeneratedV1"):
+    for event_type in (
+        "ServiceOrderOpenedV1",
+        "DiagnosisCompletedV1",
+        "QuoteGeneratedV1",
+    ):
         process.handle_event(
             envelope(
                 event_type,

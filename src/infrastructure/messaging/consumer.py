@@ -35,7 +35,7 @@ class SQSConsumer:
                 }
                 log_event("message.consumed", **attributes)
                 record_event("MessageConsumed", attributes)
-        except Exception as exc:  # noqa: BLE001 - any handler failure must leave unacked
+        except Exception as exc:  # noqa: BLE001 - handler failure stays unacked
             log_event(
                 "message.failed",
                 error_type=type(exc).__name__,

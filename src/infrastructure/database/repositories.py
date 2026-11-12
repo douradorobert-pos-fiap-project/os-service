@@ -37,7 +37,9 @@ def persist_order_aggregate(
             id=str(saga.id),
             order_id=str(order.id),
             state=saga.state.value,
-            processed_event_ids=sorted(str(value) for value in saga.processed_event_ids),
+            processed_event_ids=sorted(
+                str(value) for value in saga.processed_event_ids
+            ),
         )
     )
     session.add(

@@ -47,7 +47,9 @@ def to_response(order) -> ServiceOrderResponse:
     )
 
 
-@router.post("", response_model=ServiceOrderResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "", response_model=ServiceOrderResponse, status_code=status.HTTP_201_CREATED
+)
 def create_service_order(
     data: ServiceOrderCreate,
     request: Request,
@@ -85,9 +87,7 @@ def create_service_order(
 
 
 @router.get("/{order_id}", response_model=ServiceOrderResponse)
-def detail_service_order(
-    order_id: UUID, session: SessionDep
-) -> ServiceOrderResponse:
+def detail_service_order(order_id: UUID, session: SessionDep) -> ServiceOrderResponse:
     order = get_order(session, order_id)
     if order is None:
         raise HTTPException(status_code=404, detail="service order not found")
@@ -95,9 +95,7 @@ def detail_service_order(
 
 
 @router.get("/{order_id}/history", response_model=list[HistoryResponse])
-def service_order_history(
-    order_id: UUID, session: SessionDep
-) -> list[HistoryResponse]:
+def service_order_history(order_id: UUID, session: SessionDep) -> list[HistoryResponse]:
     if get_order(session, order_id) is None:
         raise HTTPException(status_code=404, detail="service order not found")
     return [

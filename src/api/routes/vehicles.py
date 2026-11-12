@@ -26,9 +26,7 @@ class VehicleResponse(BaseModel):
 
 
 @router.post("", response_model=VehicleResponse, status_code=status.HTTP_201_CREATED)
-def create_vehicle(
-    data: VehicleCreate, session: SessionDep
-) -> VehicleResponse:
+def create_vehicle(data: VehicleCreate, session: SessionDep) -> VehicleResponse:
     try:
         with session.begin():
             if get_customer(session, data.customer_id) is None:

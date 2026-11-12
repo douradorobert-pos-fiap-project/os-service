@@ -21,9 +21,7 @@ class CustomerResponse(BaseModel):
 
 
 @router.post("", response_model=CustomerResponse, status_code=status.HTTP_201_CREATED)
-def create_customer(
-    data: CustomerCreate, session: SessionDep
-) -> CustomerResponse:
+def create_customer(data: CustomerCreate, session: SessionDep) -> CustomerResponse:
     customer = CustomerModel(id=str(uuid4()), name=data.name, document=data.document)
     try:
         with session.begin():

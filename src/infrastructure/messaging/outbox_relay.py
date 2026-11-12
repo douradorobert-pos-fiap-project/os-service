@@ -18,9 +18,7 @@ class SQLAlchemyOutboxStore:
     def __init__(self, session_factory: Any) -> None:
         self._session_factory = session_factory
 
-    def claim_batch(
-        self, limit: int, lease_seconds: int
-    ) -> list[OutboxRecord]:
+    def claim_batch(self, limit: int, lease_seconds: int) -> list[OutboxRecord]:
         now = datetime.now(UTC)
         with self._session_factory.begin() as session:
             messages = session.scalars(
@@ -88,9 +86,7 @@ class OutboxRelay:
             try:
                 self._sqs.send(self._queue_url, message.payload)
             except Exception:  # noqa: BLE001 - every publisher failure is retryable
-                delay = min(
-                    self._base_retry_seconds * (2**message.attempts), 300
-                )
+                delay = min(self._base_retry_seconds * (2**message.attempts), 300)
                 self._store.mark_failed(message.id, delay)
                 continue
             self._store.mark_published(message.id)
