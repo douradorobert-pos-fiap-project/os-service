@@ -174,3 +174,32 @@ def test_execution_failure_after_start_requires_manual_intervention() -> None:
     assert commands == []
     assert process.order.status is ServiceOrderStatus.MANUAL_INTERVENTION
     assert process.saga.state is SagaState.MANUAL_INTERVENTION
+
+
+def test_execution_cancellation_before_start_compensates_saga() -> None:
+    process = manager()
+    for event_type in (
+        "ServiceOrderOpenedV1",
+        "DiagnosisCompletedV1",
+        "QuoteGeneratedV1",
+        "QuoteApprovedV1",
+    ):
+        process.handle_event(
+            envelope(
+                event_type,
+                saga_id=process.saga.id,
+                order_id=process.order.id,
+            )
+        )
+
+    commands = process.handle_event(
+        envelope(
+            "ExecutionCancelledV1",
+            saga_id=process.saga.id,
+            order_id=process.order.id,
+        )
+    )
+
+    assert commands == []
+    assert process.order.status is ServiceOrderStatus.CANCELLED
+    assert process.saga.state is SagaState.COMPENSATED

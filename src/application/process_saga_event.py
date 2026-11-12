@@ -54,6 +54,9 @@ class SagaProcessManager:
             (SagaState.WAITING_EXECUTION, "ExecutionFailedV1"): (
                 self._execution_failed_before_start
             ),
+            (SagaState.WAITING_EXECUTION, "ExecutionCancelledV1"): (
+                self._execution_failed_before_start
+            ),
             (SagaState.IN_EXECUTION, "ExecutionCompletedV1"): (
                 self._execution_completed
             ),
