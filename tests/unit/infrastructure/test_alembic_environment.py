@@ -4,6 +4,7 @@ from pathlib import Path
 
 import alembic.context
 import pytest
+from alembic.config import Config
 
 ROOT = Path(__file__).resolve().parents[3]
 ENV_FILE = ROOT / "migrations" / "env.py"
@@ -45,6 +46,24 @@ def test_database_url_overrides_development_alembic_url(monkeypatch) -> None:
     runpy.run_path(str(ENV_FILE))
 
     assert config.options["sqlalchemy.url"] == database_url
+
+
+def test_database_url_with_percent_is_accepted_by_real_alembic_config(
+    monkeypatch,
+) -> None:
+    config = Config(str(ROOT / "alembic.ini"))
+    monkeypatch.setattr(alembic.context, "config", config, raising=False)
+    monkeypatch.setattr(alembic.context, "is_offline_mode", lambda: True)
+    monkeypatch.setattr(alembic.context, "configure", lambda **kwargs: None)
+    monkeypatch.setattr(alembic.context, "begin_transaction", nullcontext)
+    monkeypatch.setattr(alembic.context, "run_migrations", lambda: None)
+    database_url = "postgresql+psycopg://os_service:secret%21@postgres/os_service_db"
+    monkeypatch.setenv("APP_ENV", "sandbox")
+    monkeypatch.setenv("DATABASE_URL", database_url)
+
+    runpy.run_path(str(ENV_FILE))
+
+    assert config.get_main_option("sqlalchemy.url") == database_url
 
 
 def test_sandbox_migration_rejects_missing_database_url(monkeypatch) -> None:

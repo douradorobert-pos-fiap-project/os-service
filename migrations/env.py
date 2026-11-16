@@ -9,7 +9,7 @@ from src.infrastructure.database.models import Base
 config = context.config
 database_url = os.getenv("DATABASE_URL")
 if database_url:
-    config.set_main_option("sqlalchemy.url", database_url)
+    config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
 elif os.getenv("APP_ENV", "local") != "local":
     raise RuntimeError("DATABASE_URL is required outside the local environment")
 
