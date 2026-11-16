@@ -1,0 +1,46 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: os-service
+  namespace: oficina
+  annotations:
+    alb.ingress.kubernetes.io/group.name: sandbox-api
+    alb.ingress.kubernetes.io/load-balancer-name: sandbox-api-alb
+    alb.ingress.kubernetes.io/scheme: internal
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/security-groups: ${ALB_SECURITY_GROUP_ID}
+    alb.ingress.kubernetes.io/manage-backend-security-group-rules: "false"
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+spec:
+  ingressClassName: alb
+  rules:
+    - http:
+        paths:
+          - path: /api/v1/customers
+            pathType: Prefix
+            backend:
+              service:
+                name: os-service
+                port:
+                  number: 80
+          - path: /api/v1/vehicles
+            pathType: Prefix
+            backend:
+              service:
+                name: os-service
+                port:
+                  number: 80
+          - path: /api/v1/service-orders
+            pathType: Prefix
+            backend:
+              service:
+                name: os-service
+                port:
+                  number: 80
+          - path: /health
+            pathType: Exact
+            backend:
+              service:
+                name: os-service
+                port:
+                  number: 80
