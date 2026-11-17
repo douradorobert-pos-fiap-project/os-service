@@ -8,6 +8,7 @@ K8S = ROOT / "k8s"
 SERVICE = "os-service"
 EXPECTED_FILES = {
     "deployment.yaml",
+    "worker-deployment.yaml",
     "service.yaml",
     "configmap.yaml",
     "hpa.yaml",
@@ -50,6 +51,27 @@ def test_deployment_is_immutable_non_root_and_operationally_bounded():
     assert container["resources"]["limits"].keys() == {"cpu", "memory"}
     assert container["readinessProbe"]["httpGet"]["path"] == "/health"
     assert container["livenessProbe"]["httpGet"]["path"] == "/health"
+
+
+def test_worker_deployment_is_isolated_non_root_and_uses_the_service_image():
+    worker = documents("worker-deployment.yaml")[0]
+    pod = worker["spec"]["template"]["spec"]
+    container = pod["containers"][0]
+    assert worker["metadata"]["name"] == f"{SERVICE}-worker"
+    assert worker["spec"]["replicas"] == 1
+    assert container["command"] == [
+        "newrelic-admin",
+        "run-program",
+        "python",
+        "-m",
+        "src.worker",
+    ]
+    assert "tech-challenge-fiap-os-service@sha256:" in container["image"]
+    assert pod["securityContext"]["runAsNonRoot"] is True
+    assert container["envFrom"] == [
+        {"configMapRef": {"name": f"{SERVICE}-config"}},
+        {"secretRef": {"name": f"{SERVICE}-secrets"}},
+    ]
 
 
 def test_service_hpa_and_configuration_are_service_scoped():

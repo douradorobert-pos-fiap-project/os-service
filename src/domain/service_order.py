@@ -45,7 +45,7 @@ _TRANSITIONS: dict[ServiceOrderStatus, set[ServiceOrderStatus]] = {
         ServiceOrderStatus.DELIVERED,
         ServiceOrderStatus.MANUAL_INTERVENTION,
     },
-    ServiceOrderStatus.DELIVERED: set(),
+    ServiceOrderStatus.DELIVERED: {ServiceOrderStatus.MANUAL_INTERVENTION},
     ServiceOrderStatus.CANCELLED: set(),
     ServiceOrderStatus.MANUAL_INTERVENTION: set(),
 }

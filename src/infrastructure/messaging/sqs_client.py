@@ -64,11 +64,16 @@ class SQSClient:
             record_event("MessagePublished", attributes)
         return response["MessageId"]
 
-    def receive(self, queue_url: str) -> list[ReceivedMessage]:
+    def queue_url(self, queue_name: str) -> str:
+        return self._client.get_queue_url(QueueName=queue_name)["QueueUrl"]
+
+    def receive(
+        self, queue_url: str, wait_time_seconds: int = 0
+    ) -> list[ReceivedMessage]:
         response = self._client.receive_message(
             QueueUrl=queue_url,
             MaxNumberOfMessages=1,
-            WaitTimeSeconds=0,
+            WaitTimeSeconds=wait_time_seconds,
             AttributeNames=["ApproximateReceiveCount"],
         )
         received = []

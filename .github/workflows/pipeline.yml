@@ -111,4 +111,6 @@ jobs:
           kubectl apply -f k8s/hpa.yaml
           sed "s|\${ALB_SECURITY_GROUP_ID}|$ALB_SECURITY_GROUP_ID|" k8s/ingress.yaml | kubectl apply -f -
           kubectl -n oficina rollout status deployment/os-service --timeout=180s
+          sed "s|image: .*tech-challenge-fiap-os-service.*|image: $IMAGE|" k8s/worker-deployment.yaml | kubectl apply -f -
+          kubectl -n oficina rollout status deployment/os-service-worker --timeout=180s
 

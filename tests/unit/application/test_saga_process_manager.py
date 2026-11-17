@@ -16,6 +16,7 @@ def envelope(
     saga_id: UUID,
     order_id: UUID,
     event_id: UUID | None = None,
+    payload: dict | None = None,
 ) -> EventEnvelopeV1:
     identifier = event_id or uuid4()
     return EventEnvelopeV1(
@@ -27,7 +28,7 @@ def envelope(
         causation_id=uuid4(),
         saga_id=saga_id,
         order_id=order_id,
-        payload={},
+        payload=payload or {},
     )
 
 
@@ -41,6 +42,7 @@ def manager() -> SagaProcessManager:
 
 def test_saga_generates_the_happy_path_commands() -> None:
     process = manager()
+    recommended_service_id = uuid4()
     sequence = [
         ("ServiceOrderOpenedV1", "DiagnosisRequestedV1"),
         ("DiagnosisCompletedV1", "QuoteGenerationRequestedV1"),
@@ -58,11 +60,20 @@ def test_saga_generates_the_happy_path_commands() -> None:
                 event_type,
                 saga_id=process.saga.id,
                 order_id=process.order.id,
+                payload=(
+                    {"recommended_service_ids": [str(recommended_service_id)]}
+                    if event_type == "DiagnosisCompletedV1"
+                    else None
+                ),
             )
         )
         assert [command.command_type for command in commands] == (
             [expected_command] if expected_command else []
         )
+        if event_type == "DiagnosisCompletedV1":
+            assert commands[0].payload == {
+                "recommended_service_ids": [str(recommended_service_id)]
+            }
 
     assert process.order.status is ServiceOrderStatus.DELIVERED
     assert process.saga.state is SagaState.COMPLETED
@@ -207,3 +218,65 @@ def test_execution_cancellation_before_start_compensates_saga() -> None:
     assert commands == []
     assert process.order.status is ServiceOrderStatus.CANCELLED
     assert process.saga.state is SagaState.COMPENSATED
+
+
+def test_payment_rejection_requires_manual_intervention() -> None:
+    process = manager()
+    for event_type in (
+        "ServiceOrderOpenedV1",
+        "DiagnosisCompletedV1",
+        "QuoteGeneratedV1",
+        "QuoteApprovedV1",
+        "ExecutionStartedV1",
+        "ExecutionCompletedV1",
+    ):
+        process.handle_event(
+            envelope(
+                event_type,
+                saga_id=process.saga.id,
+                order_id=process.order.id,
+            )
+        )
+
+    process.handle_event(
+        envelope(
+            "PaymentRejectedV1",
+            saga_id=process.saga.id,
+            order_id=process.order.id,
+        )
+    )
+
+    assert process.order.status is ServiceOrderStatus.MANUAL_INTERVENTION
+    assert process.saga.state is SagaState.MANUAL_INTERVENTION
+
+
+def test_payment_refund_moves_delivered_order_to_manual_intervention() -> None:
+    process = manager()
+    for event_type in (
+        "ServiceOrderOpenedV1",
+        "DiagnosisCompletedV1",
+        "QuoteGeneratedV1",
+        "QuoteApprovedV1",
+        "ExecutionStartedV1",
+        "ExecutionCompletedV1",
+        "PaymentPendingV1",
+        "PaymentConfirmedV1",
+    ):
+        process.handle_event(
+            envelope(
+                event_type,
+                saga_id=process.saga.id,
+                order_id=process.order.id,
+            )
+        )
+
+    process.handle_event(
+        envelope(
+            "PaymentRefundedV1",
+            saga_id=process.saga.id,
+            order_id=process.order.id,
+        )
+    )
+
+    assert process.order.status is ServiceOrderStatus.MANUAL_INTERVENTION
+    assert process.saga.state is SagaState.MANUAL_INTERVENTION
