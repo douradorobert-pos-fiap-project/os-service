@@ -22,16 +22,16 @@ def persist_order_aggregate(
     saga: ServiceOrderSaga,
     commands: list[PendingCommand],
 ) -> None:
-    session.add(
-        ServiceOrderModel(
-            id=str(order.id),
-            customer_id=str(order.customer_id),
-            vehicle_id=str(order.vehicle_id),
-            saga_id=str(order.saga_id),
-            correlation_id=str(order.correlation_id),
-            status=order.status.value,
-        )
+    order_model = ServiceOrderModel(
+        id=str(order.id),
+        customer_id=str(order.customer_id),
+        vehicle_id=str(order.vehicle_id),
+        saga_id=str(order.saga_id),
+        correlation_id=str(order.correlation_id),
+        status=order.status.value,
     )
+    session.add(order_model)
+    session.flush()
     session.add(
         SagaModel(
             id=str(saga.id),

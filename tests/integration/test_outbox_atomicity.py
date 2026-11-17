@@ -2,13 +2,20 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import create_engine, event, func, select
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from src.application.open_service_order import open_order
 from src.application.process_saga_event import SagaProcessManager
 from src.infrastructure.database.inbox import claim_event
-from src.infrastructure.database.models import OutboxMessageModel, ServiceOrderModel
+from src.infrastructure.database.models import (
+    Base,
+    CustomerModel,
+    OutboxMessageModel,
+    ServiceOrderModel,
+    VehicleModel,
+)
 from src.infrastructure.database.repositories import persist_order_aggregate
 from src.infrastructure.messaging.envelope import EventEnvelopeV1
 
@@ -76,3 +83,45 @@ def test_inbox_deduplicates_per_consumer(
         assert claim_event(session, event_id, "os-saga") is True
         assert claim_event(session, event_id, "os-saga") is False
         assert claim_event(session, event_id, "audit-projection") is True
+
+
+def test_order_aggregate_flushes_parent_before_saga_foreign_key():
+    engine = create_engine(
+        "sqlite+pysqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+
+    @event.listens_for(engine, "connect")
+    def enable_foreign_keys(connection, _record):
+        cursor = connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(bind=engine, expire_on_commit=False)
+    order, saga, commands = opened_order_with_command()
+    with factory.begin() as session:
+        session.add(
+            CustomerModel(
+                id=str(order.customer_id), name="Smoke test", document="90000000001"
+            )
+        )
+        session.add(
+            VehicleModel(
+                id=str(order.vehicle_id),
+                customer_id=str(order.customer_id),
+                license_plate="SMK0001",
+                make="SMOKE",
+                model="Synthetic",
+                year=2026,
+            )
+        )
+
+    with factory.begin() as session:
+        persist_order_aggregate(session, order, saga, commands)
+
+    with factory() as session:
+        assert session.get(ServiceOrderModel, str(order.id)) is not None
+
+    engine.dispose()
