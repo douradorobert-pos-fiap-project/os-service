@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -5,6 +6,7 @@ from typing import Any
 from sqlalchemy import or_, select
 
 from src.infrastructure.database.models import OutboxMessageModel
+from src.infrastructure.observability.logging import log_event
 
 
 @dataclass(frozen=True)
@@ -71,7 +73,7 @@ class OutboxRelay:
         self,
         store: SQLAlchemyOutboxStore,
         sqs: Any,
-        queue_url: str,
+        queue_url: str | Mapping[str, str],
         *,
         base_retry_seconds: int = 1,
     ) -> None:
@@ -83,8 +85,16 @@ class OutboxRelay:
     def run_once(self) -> int:
         published = 0
         for message in self._store.claim_batch(limit=10, lease_seconds=30):
+            queue_url = self._queue_for(message.payload)
+            if queue_url is None:
+                self._store.mark_failed(message.id, 300)
+                log_event(
+                    "outbox.route_missing",
+                    event_type=message.payload.get("event_type"),
+                )
+                continue
             try:
-                self._sqs.send(self._queue_url, message.payload)
+                self._sqs.send(queue_url, message.payload)
             except Exception:  # noqa: BLE001 - every publisher failure is retryable
                 delay = min(self._base_retry_seconds * (2**message.attempts), 300)
                 self._store.mark_failed(message.id, delay)
@@ -92,3 +102,9 @@ class OutboxRelay:
             self._store.mark_published(message.id)
             published += 1
         return published
+
+    def _queue_for(self, payload: dict[str, Any]) -> str | None:
+        if isinstance(self._queue_url, str):
+            return self._queue_url
+        event_type = payload.get("event_type")
+        return self._queue_url.get(event_type) if isinstance(event_type, str) else None

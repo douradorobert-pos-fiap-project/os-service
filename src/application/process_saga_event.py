@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from typing import Any
 from uuid import NAMESPACE_URL, uuid5
 
 from src.domain.saga import (
@@ -16,9 +17,11 @@ from src.infrastructure.observability.telemetry import record_event
 class SagaProcessManager:
     """Coordinate the service-order Saga without owning participant rules."""
 
-    def __init__(self, order: ServiceOrder) -> None:
+    def __init__(
+        self, order: ServiceOrder, saga: ServiceOrderSaga | None = None
+    ) -> None:
         self.order = order
-        self.saga = ServiceOrderSaga(id=order.saga_id, order_id=order.id)
+        self.saga = saga or ServiceOrderSaga(id=order.saga_id, order_id=order.id)
 
     def handle_event(self, event: EventEnvelopeV1) -> list[PendingCommand]:
         if event.event_id in self.saga.processed_event_ids:
@@ -61,6 +64,10 @@ class SagaProcessManager:
     ) -> dict[tuple[SagaState, str], Callable[[EventEnvelopeV1], list[PendingCommand]]]:
         return {
             (SagaState.STARTED, "ServiceOrderOpenedV1"): self._order_opened,
+            (
+                SagaState.WAITING_DIAGNOSIS,
+                "DiagnosisStartedV1",
+            ): self._diagnosis_started,
             (SagaState.WAITING_DIAGNOSIS, "DiagnosisCompletedV1"): (
                 self._diagnosis_completed
             ),
@@ -76,6 +83,7 @@ class SagaProcessManager:
             (SagaState.WAITING_EXECUTION, "ExecutionCancelledV1"): (
                 self._execution_failed_before_start
             ),
+            (SagaState.WAITING_EXECUTION, "ExecutionQueuedV1"): self._execution_queued,
             (SagaState.IN_EXECUTION, "ExecutionCompletedV1"): (
                 self._execution_completed
             ),
@@ -84,9 +92,16 @@ class SagaProcessManager:
             ),
             (SagaState.WAITING_PAYMENT, "PaymentPendingV1"): self._payment_pending,
             (SagaState.WAITING_PAYMENT, "PaymentConfirmedV1"): self._payment_confirmed,
+            (SagaState.WAITING_PAYMENT, "PaymentRejectedV1"): self._payment_rejected,
+            (SagaState.COMPLETED, "PaymentRefundedV1"): self._payment_refunded,
         }
 
-    def _command(self, event: EventEnvelopeV1, command_type: str) -> PendingCommand:
+    def _command(
+        self,
+        event: EventEnvelopeV1,
+        command_type: str,
+        payload: dict[str, Any] | None = None,
+    ) -> PendingCommand:
         command_id = uuid5(
             NAMESPACE_URL, f"{self.saga.id}:{event.event_id}:{command_type}"
         )
@@ -98,6 +113,7 @@ class SagaProcessManager:
             correlation_id=event.correlation_id,
             causation_id=event.event_id,
             occurred_at=event.occurred_at,
+            payload=payload or {},
         )
 
     def _order_opened(self, event: EventEnvelopeV1) -> list[PendingCommand]:
@@ -105,10 +121,23 @@ class SagaProcessManager:
         self.saga.state = SagaState.WAITING_DIAGNOSIS
         return [self._command(event, "DiagnosisRequestedV1")]
 
+    def _diagnosis_started(self, event: EventEnvelopeV1) -> list[PendingCommand]:
+        return []
+
     def _diagnosis_completed(self, event: EventEnvelopeV1) -> list[PendingCommand]:
         self.order.complete_diagnosis()
         self.saga.state = SagaState.WAITING_QUOTE
-        return [self._command(event, "QuoteGenerationRequestedV1")]
+        return [
+            self._command(
+                event,
+                "QuoteGenerationRequestedV1",
+                {
+                    "recommended_service_ids": event.payload.get(
+                        "recommended_service_ids", []
+                    )
+                },
+            )
+        ]
 
     def _quote_generated(self, event: EventEnvelopeV1) -> list[PendingCommand]:
         self.order.receive_quote()
@@ -128,6 +157,9 @@ class SagaProcessManager:
     def _execution_started(self, event: EventEnvelopeV1) -> list[PendingCommand]:
         self.order.start_execution()
         self.saga.state = SagaState.IN_EXECUTION
+        return []
+
+    def _execution_queued(self, event: EventEnvelopeV1) -> list[PendingCommand]:
         return []
 
     def _execution_failed_before_start(
@@ -157,4 +189,14 @@ class SagaProcessManager:
         self.order.confirm_payment()
         self.order.deliver()
         self.saga.state = SagaState.COMPLETED
+        return []
+
+    def _payment_rejected(self, event: EventEnvelopeV1) -> list[PendingCommand]:
+        self.order.require_manual_intervention()
+        self.saga.state = SagaState.MANUAL_INTERVENTION
+        return []
+
+    def _payment_refunded(self, event: EventEnvelopeV1) -> list[PendingCommand]:
+        self.order.require_manual_intervention()
+        self.saga.state = SagaState.MANUAL_INTERVENTION
         return []

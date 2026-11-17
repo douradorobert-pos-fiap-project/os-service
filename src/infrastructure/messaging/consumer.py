@@ -8,12 +8,15 @@ from src.infrastructure.observability.telemetry import record_event
 
 
 class SQSConsumer:
-    def __init__(self, sqs: SQSClient, queue_url: str) -> None:
+    def __init__(
+        self, sqs: SQSClient, queue_url: str, wait_time_seconds: int = 0
+    ) -> None:
         self._sqs = sqs
         self._queue_url = queue_url
+        self._wait_time_seconds = wait_time_seconds
 
-    def poll_once(self, handler: Callable[[dict[str, Any]], None]) -> str:
-        messages = self._sqs.receive(self._queue_url)
+    def poll_once(self, handler: Callable[[dict[str, Any]], Any]) -> str:
+        messages = self._sqs.receive(self._queue_url, self._wait_time_seconds)
         if not messages:
             return "empty"
         message = messages[0]
