@@ -9,6 +9,9 @@ from botocore.config import Config
 from src.infrastructure.observability.logging import bind_context, log_event
 from src.infrastructure.observability.telemetry import record_event
 
+SQS_LONG_POLL_WAIT_SECONDS = 10
+SQS_READ_TIMEOUT_SECONDS = 15
+
 
 @dataclass(frozen=True)
 class ReceivedMessage:
@@ -31,7 +34,7 @@ class SQSClient:
             "config": Config(
                 retries={"max_attempts": 3, "mode": "standard"},
                 connect_timeout=2,
-                read_timeout=2,
+                read_timeout=SQS_READ_TIMEOUT_SECONDS,
             ),
         }
         if endpoint_url:

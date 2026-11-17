@@ -8,7 +8,10 @@ from src.infrastructure.messaging.outbox_relay import (
     OutboxRelay,
     SQLAlchemyOutboxStore,
 )
-from src.infrastructure.messaging.sqs_client import SQSClient
+from src.infrastructure.messaging.sqs_client import (
+    SQS_LONG_POLL_WAIT_SECONDS,
+    SQSClient,
+)
 from src.infrastructure.observability.logging import log_event
 
 
@@ -27,7 +30,7 @@ def main() -> None:
         "PaymentCreationRequestedV1": queue_urls["billing-service"],
     }
     relay = OutboxRelay(SQLAlchemyOutboxStore(SessionFactory), sqs, routes)
-    consumer = SQSConsumer(sqs, inbox_url, wait_time_seconds=10)
+    consumer = SQSConsumer(sqs, inbox_url, wait_time_seconds=SQS_LONG_POLL_WAIT_SECONDS)
     log_event("worker.started", service="os-service")
 
     while True:
