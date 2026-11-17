@@ -60,10 +60,31 @@ jobs:
           REGISTRY: ${{ steps.ecr.outputs.registry }}
         run: |
           REPOSITORY="${{ github.event.repository.name }}"
-          TAGGED_IMAGE="$REGISTRY/$REPOSITORY:${{ github.sha }}"
-          docker build --tag "$TAGGED_IMAGE" .
-          docker push "$TAGGED_IMAGE"
-          DIGEST="$(aws ecr describe-images --repository-name "$REPOSITORY" --image-ids imageTag=${{ github.sha }} --query 'imageDetails[0].imageDigest' --output text)"
+          IMAGE_TAG="${{ github.sha }}"
+          TAGGED_IMAGE="$REGISTRY/$REPOSITORY:$IMAGE_TAG"
+          get_digest() {
+            aws ecr describe-images \
+              --repository-name "$REPOSITORY" \
+              --image-ids "imageTag=$IMAGE_TAG" \
+              --query 'imageDetails[0].imageDigest' \
+              --output text 2>/dev/null
+          }
+          DIGEST="$(get_digest || true)"
+          if [[ -z "$DIGEST" || "$DIGEST" == "None" ]]; then
+            docker build --tag "$TAGGED_IMAGE" .
+            if ! docker push "$TAGGED_IMAGE"; then
+              # Another workflow run may have published the same immutable tag.
+              DIGEST="$(get_digest || true)"
+              if [[ -z "$DIGEST" || "$DIGEST" == "None" ]]; then
+                echo "Image push failed and no image exists for tag $IMAGE_TAG" >&2
+                exit 1
+              fi
+            else
+              DIGEST="$(get_digest)"
+            fi
+          else
+            echo "Reusing existing immutable image $TAGGED_IMAGE"
+          fi
           echo "uri=$REGISTRY/$REPOSITORY@$DIGEST" >> "$GITHUB_OUTPUT"
 
   deploy:
