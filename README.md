@@ -13,6 +13,10 @@ bash scripts/quality.sh
 
 Swagger: `http://localhost:8001/docs`; OpenAPI: `/openapi.json`; health: `/health`. Principais rotas: `/api/v1/customers`, `/api/v1/vehicles` e `/api/v1/service-orders`.
 
+## Evidências de qualidade
+
+Execução `workflow_dispatch` concluída com sucesso em 17/11/2026: [run 44119565683](https://github.com/douradorobert-pos-fiap-project/os-service/actions/runs/44119565683). O workflow reportou 67 testes aprovados e 93,18% de cobertura. O artifact `quality-reports-os-service` inclui `coverage.xml` e JUnit.
+
 Configuração e secrets devem vir do ambiente/Kubernetes; use `k8s/secret.example.yaml` apenas como modelo. Pull requests executam qualidade e build Docker local, sem publicar ou acessar a AWS. O workflow publica a imagem por SHA e resolve seu digest, sincroniza o Secret, executa `alembic upgrade head` e somente então atualiza o Deployment quando iniciado manualmente por `workflow_dispatch` no environment `sandbox`.
 
 ## Configuração do sandbox
